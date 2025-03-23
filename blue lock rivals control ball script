@@ -1,0 +1,181 @@
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+-- Local Player and Character
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- Check if the player is a Blue Lock rival
+local function isBlueLockRival(player)
+    -- Implement your logic here to check if the player is a Blue Lock rival
+    -- For example, check if the player is in a specific team or group
+    -- Return true if the player is a Blue Lock rival, otherwise return false
+    return player.Team and player.Team.Name == "Blue Lock Rivals"
+end
+
+if not isBlueLockRival(LocalPlayer) then
+    warn("You are not a Blue Lock rival!")
+    return
+end
+
+-- Variables
+local Ball
+local ControlActive = false
+local MoveForward = true
+local Speed = 70
+
+-- UI Elements
+local ControlBallUI = Instance.new("ScreenGui")
+ControlBallUI.Name = "ControlBallUI"
+ControlBallUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local ControlButton = Instance.new("TextButton")
+ControlButton.Size = UDim2.new(0.15, 0, 0.08, 0)
+ControlButton.Position = UDim2.new(0.1, 0, 0.8, 0)
+ControlButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ControlButton.Text = "CONTROL"
+ControlButton.TextScaled = true
+ControlButton.Parent = ControlBallUI
+
+local StopButton = Instance.new("TextButton")
+StopButton.Size = UDim2.new(0.15, 0, 0.08, 0)
+StopButton.Position = UDim2.new(0.75, 0, 0.8, 0)
+StopButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+StopButton.Text = "STOP"
+StopButton.TextScaled = true
+StopButton.Visible = false
+StopButton.Parent = ControlBallUI
+
+local SpeedFrame = Instance.new("Frame")
+SpeedFrame.Size = UDim2.new(0.3, 0, 0.12, 0)
+SpeedFrame.Position = UDim2.new(0.35, 0, 0.6, 0)
+SpeedFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SpeedFrame.Visible = false
+SpeedFrame.Parent = ControlBallUI
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, 0, 0.3, 0)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Speed: 70"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextScaled = true
+SpeedLabel.Parent = SpeedFrame
+
+local SliderFrame = Instance.new("Frame")
+SliderFrame.Size = UDim2.new(0.9, 0, 0.4, 0)
+SliderFrame.Position = UDim2.new(0.05, 0, 0.5, 0)
+SliderFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SliderFrame.Parent = SpeedFrame
+
+local Slider = Instance.new("Frame")
+Slider.Size = UDim2.new(0.05, 0, 1, 0)
+Slider.Position = UDim2.new(0.1, 0, 0, 0)
+Slider.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+Slider.Parent = SliderFrame
+
+local function FindBall()
+    return workspace:FindFirstChild("Basketball") -- Change "Football" to "Basketball"
+end
+
+local function ControlBall()
+    if ControlActive then
+        -- Deactivate control
+        ControlActive = false
+        Camera.CameraSubject = Character
+        StopButton.Visible = false
+        SpeedFrame.Visible = false
+        if Ball:FindFirstChildOfClass("BodyVelocity") then
+            Ball:FindFirstChildOfClass("BodyVelocity"):Destroy()
+        end
+    else
+        -- Activate control
+        Ball = FindBall()
+        if not Ball then
+            warn("No Ball Found!")
+            return
+        end
+
+        ControlActive = true
+        MoveForward = true
+        Camera.CameraSubject = Ball
+        StopButton.Visible = true
+        SpeedFrame.Visible = true
+        StopButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        
+        local BodyVelocity = Instance.new("BodyVelocity")
+        BodyVelocity.MaxForce = Vector3.new(1000000, 1000000, 1000000)
+        BodyVelocity.Parent = Ball
+        
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            if not ControlActive or not Ball or not Ball.Parent then
+                BodyVelocity:Destroy()
+                connection:Disconnect()
+            else
+                BodyVelocity.Velocity = MoveForward and (Camera.CFrame.LookVector * Speed) or Vector3.new(0, 0, 0)
+            end
+        end)
+    end
+end
+
+local function StopControl()
+    if not ControlActive then return end
+    MoveForward = not MoveForward
+    StopButton.BackgroundColor3 = MoveForward and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    
+    if not MoveForward and Ball and Ball:FindFirstChildOfClass("BodyVelocity") then
+        Ball:FindFirstChildOfClass("BodyVelocity").Velocity = Vector3.new(0, 0, 0)
+    end
+end
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Z then
+        Speed = math.max(Speed - 10, 10)
+        SpeedLabel.Text = "Speed: " .. tostring(Speed)
+    elseif input.KeyCode == Enum.KeyCode.X then
+        Speed = math.min(Speed + 10, 350)
+        SpeedLabel.Text = "Speed: " .. tostring(Speed)
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G then
+        ControlBall()
+    elseif input.KeyCode == Enum.KeyCode.F then
+        StopControl()
+    end
+end)
+
+local Dragging = false
+
+Slider.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Dragging then
+        local MouseX = UserInputService:GetMouseLocation().X
+        local MinX, MaxX = SliderFrame.AbsolutePosition.X, SliderFrame.AbsolutePosition.X + SliderFrame.AbsoluteSize.X
+        local ClampedX = math.clamp(MouseX, MinX, MaxX)
+        local RelativeX = (ClampedX - MinX) / (MaxX - MinX)
+        Slider.Position = UDim2.new(RelativeX, 0, 0, 0)
+        Speed = math.floor(10 + (RelativeX * 340))
+        SpeedLabel.Text = "Speed: " .. tostring(Speed)
+    end
+end)
+
+StopButton.MouseButton1Click:Connect(StopControl)
+ControlButton.MouseButton1Click:Connect(ControlBall)
